@@ -112,17 +112,7 @@ class AutoRegressiveDecoder(BaseDecoder):
         for _ in range(max_new_tokens):
             if self._is_terminator(input_ids[:, -1]):
                 break
-<<<<<<< HEAD
-            if self.use_cache:
-                model_inputs = self.target_model.prepare_inputs_for_generation(input_ids, past_key_values=past_key_values)
-                outputs = self.target_model(**model_inputs, use_cache=True)
-                logits = outputs.logits
-                past_key_values = outputs.past_key_values
-            else:
-                logits = self.target_model(input_ids, use_cache=False).logits
-=======
             logits = self.target_model(input_ids).logits
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
             probs = self._logits2probs(logits[:, -1, :], temperature=temperature)
             token_id = torch.multinomial(probs, num_samples=1)
             input_ids = torch.cat((input_ids, token_id), dim=1)
@@ -133,42 +123,20 @@ class AutoRegressiveDecoder(BaseDecoder):
             input_ids: torch.Tensor,
             max_new_tokens: int = 30,
             temperature: float = 1.,
-<<<<<<< HEAD
-            **kwargs) -> torch.Tensor:
-=======
             **args) -> torch.Tensor:
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         # for calculating stats
         start_time = time.perf_counter()
         init_length = input_ids.shape[1]
 
-<<<<<<< HEAD
-        past_key_values = None
-        for _ in range(max_new_tokens):
-            if self._is_terminator(input_ids[:, -1]):
-                break
-            if self.use_cache:
-                model_inputs = self.target_model.prepare_inputs_for_generation(input_ids, past_key_values=past_key_values)
-                outputs = self.target_model(**model_inputs, use_cache=True)
-                logits = outputs.logits
-                past_key_values = outputs.past_key_values
-            else:
-                logits = self.target_model(input_ids, use_cache=False).logits
-=======
         for _ in range(max_new_tokens):
             if self._is_terminator(input_ids[:, -1]):
                 break
             logits = self.target_model(input_ids).logits
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
             probs = self._logits2probs(logits[:, -1, :], temperature=temperature)
             token_id = torch.multinomial(probs, num_samples=1)
             input_ids = torch.cat((input_ids, token_id), dim=1)
 
-<<<<<<< HEAD
-        # for calculating stats
-=======
                 # for calculating stats
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         end_time = time.perf_counter()
         total_time = end_time - start_time
         total_tokens = input_ids.shape[1] - init_length
@@ -192,13 +160,8 @@ class SpeculativeDecoder(BaseDecoder):
     """
     def __init__(self,
             draft_model: torch.nn.Module,
-<<<<<<< HEAD
-            **kwargs) -> None:
-        super().__init__(**kwargs)
-=======
             **args) -> None:
         super().__init__(**args)
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         self.draft_model = draft_model
         self.vocab_size = draft_model.config.vocab_size
 
@@ -227,11 +190,7 @@ class SpeculativeDecoder(BaseDecoder):
             max_new_tokens: int = 30,
             temperature: float = 1.,
             n_lookahead: int = 5,
-<<<<<<< HEAD
-            **kwargs) -> torch.Tensor:
-=======
             **args) -> torch.Tensor:
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         """_summary_
 
         Parameters
@@ -254,11 +213,6 @@ class SpeculativeDecoder(BaseDecoder):
         # 1. Initialize
         T = input_ids.shape[1] + max_new_tokens - 1  # constant value: position to stop generation
         n = input_ids.shape[1] - 1  # variable: the end position of the confirmed token
-<<<<<<< HEAD
-        draft_past_key_values = None
-        target_past_key_values = None
-=======
->>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
 
         while (n < T and not self._is_terminator(input_ids[:, -1])):  # while not EOS/PAD, and not reach the end position (= T)
 
