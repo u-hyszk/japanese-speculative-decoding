@@ -107,7 +107,7 @@ class AutoRegressiveDecoder(BaseDecoder):
             input_ids: torch.Tensor,
             max_new_tokens: int = 30,
             temperature: float = 1.,
-            **args) -> torch.Tensor:
+            **kwargs) -> torch.Tensor:
         # for calculating stats
         start_time = time.perf_counter()
         init_length = input_ids.shape[1]
