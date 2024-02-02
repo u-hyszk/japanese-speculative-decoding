@@ -38,12 +38,14 @@ class BaseDecoder:
         probs = F.softmax(logits, dim=-1)  # get probability distribution (sum of probs is equal to 1)
         return probs
 
+    @torch.no_grad()
     def generate(
             self,
             input_ids: torch.Tensor,
             **kwargs) -> torch.Tensor:
         pass
 
+    @torch.no_grad()
     def generate_with_stats(self,
             input_ids: torch.Tensor,
             **kwargs) -> torch.Tensor:
@@ -58,6 +60,7 @@ class AutoRegressiveDecoder(BaseDecoder):
     BaseDecoder : _type_
         _description_
     """
+    @torch.no_grad()
     def generate(
             self,
             input_ids: torch.Tensor,
@@ -80,15 +83,25 @@ class AutoRegressiveDecoder(BaseDecoder):
         torch.Tensor
             _description_
         """
+        past_key_values = None
         for _ in range(max_new_tokens):
             if self._is_terminator(input_ids[:, -1]):
                 break
-            logits = self.target_model(input_ids).logits
-            probs = self._logits2probs(logits[:, -1, :], temperature=temperature)
+            if self.use_cache:
+                if past_key_values is None:
+                    past_key_values = self.target_model(input_ids[:, :-1], use_cache=True).past_key_values
+                model_inputs = self.target_model.prepare_inputs_for_generation(input_ids, past_key_values=past_key_values)
+                outputs = self.target_model(**model_inputs, use_cache=True)
+                next_logits = outputs.logits[:, -1, :]
+                past_key_values = outputs.past_key_values
+            else:
+                next_logits = self.target_model(input_ids, use_cache=False).logits[:, -1, :]
+            probs = self._logits2probs(next_logits, temperature=temperature)
             token_id = torch.multinomial(probs, num_samples=1)
             input_ids = torch.cat((input_ids, token_id), dim=1)
         return input_ids
 
+    @torch.no_grad()
     def generate_with_stats(
             self,
             input_ids: torch.Tensor,
@@ -99,15 +112,24 @@ class AutoRegressiveDecoder(BaseDecoder):
         start_time = time.perf_counter()
         init_length = input_ids.shape[1]
 
+        past_key_values = None
         for _ in range(max_new_tokens):
             if self._is_terminator(input_ids[:, -1]):
                 break
-            logits = self.target_model(input_ids).logits
-            probs = self._logits2probs(logits[:, -1, :], temperature=temperature)
+            if self.use_cache:
+                if past_key_values is None:
+                    past_key_values = self.target_model(input_ids[:, :-1], use_cache=True).past_key_values
+                model_inputs = self.target_model.prepare_inputs_for_generation(input_ids, past_key_values=past_key_values)
+                outputs = self.target_model(**model_inputs, use_cache=True)
+                next_logits = outputs.logits[:, -1, :]
+                past_key_values = outputs.past_key_values
+            else:
+                next_logits = self.target_model(input_ids, use_cache=False).logits[:, -1, :]
+            probs = self._logits2probs(next_logits, temperature=temperature)
             token_id = torch.multinomial(probs, num_samples=1)
             input_ids = torch.cat((input_ids, token_id), dim=1)
 
-                # for calculating stats
+        # for calculating stats
         end_time = time.perf_counter()
         total_time = end_time - start_time
         total_tokens = input_ids.shape[1] - init_length
@@ -155,13 +177,14 @@ class SpeculativeDecoder(BaseDecoder):
                 p=1, dim=1,
             )  # (batch, vocab)
 
+    @torch.no_grad()
     def generate(
             self,
             input_ids: torch.Tensor,
             max_new_tokens: int = 30,
             temperature: float = 1.,
             n_lookahead: int = 5,
-            **args) -> torch.Tensor:
+            **kwargs) -> torch.Tensor:
         """_summary_
 
         Parameters
@@ -184,13 +207,14 @@ class SpeculativeDecoder(BaseDecoder):
         # 1. Initialize
         T = input_ids.shape[1] + max_new_tokens - 1  # constant value: position to stop generation
         n = input_ids.shape[1] - 1  # variable: the end position of the confirmed token
+        draft_probs = torch.empty((input_ids.shape[0], n_lookahead, self.vocab_size), device=input_ids.device)
+        target_probs = torch.empty((input_ids.shape[0], n_lookahead + 1, self.vocab_size), device=input_ids.device)
+        # to store tentetive probability distributions; (batch, n_lookahead, vocab)
 
         while (n < T and not self._is_terminator(input_ids[:, -1])):  # while not EOS/PAD, and not reach the end position (= T)
 
             # 2. Sample draft auto-regressively
             draft_token_ids = input_ids  # input_iss.shape == draft_token_ids.shape -> (batch, sequence)
-            draft_probs = torch.empty((input_ids.shape[0], n_lookahead, self.vocab_size), device=input_ids.device)
-            # to store tentetive probability distributions; (batch, n_lookahead, vocab)
             draft_past_key_values = None
             for i in range(n_lookahead):
                 if self.use_cache:
@@ -198,11 +222,11 @@ class SpeculativeDecoder(BaseDecoder):
                         draft_past_key_values = self.draft_model(input_ids[:, :-1], use_cache=True).past_key_values
                     model_inputs = self.draft_model.prepare_inputs_for_generation(input_ids, past_key_values=draft_past_key_values)
                     outputs = self.draft_model(**model_inputs, use_cache=True)
-                    logits = outputs.logits
+                    next_logits = outputs.logits[:, -1, :]
                     tmp_draft_past_key_values = outputs.past_key_values
                 else:
-                    logits = self.draft_model(input_ids, use_cache=False).logits
-                draft_probs[:, i, :] = self._logits2probs(logits[:, -1, :], temperature=temperature)  # logits.shape -> (batch, sequence, vocab)
+                    next_logits = self.draft_model(input_ids, use_cache=False).logits[:, -1, :]
+                draft_probs[:, i, :] = self._logits2probs(next_logits, temperature=temperature)  # logits.shape -> (batch, sequence, vocab)
                 token_id = torch.multinomial(draft_probs[:, i, :], num_samples=1)  # sample 1 token from the probability distribution
                 draft_token_ids = torch.cat((draft_token_ids, token_id), dim=1)
 
@@ -216,7 +240,6 @@ class SpeculativeDecoder(BaseDecoder):
                 tmp_target_past_key_values = outputs.past_key_values
             else:
                 logits = self.target_model(input_ids, use_cache=False).logits  # parallel computation
-            target_probs = torch.empty((input_ids.shape[0], n_lookahead + 1, self.vocab_size), device=input_ids.device)
             for i in range(n_lookahead + 1):
                 target_probs[:, i, :] = self._logits2probs(logits[:, -n_lookahead - 1 + i, :], temperature=temperature)  # -n_lookahead - 1, -n_lookahead, ..., -1
             # get 1 extra probs for "8. If all tokens are accepted, sample an extra token from target model" to be processed later
@@ -259,7 +282,7 @@ class SpeculativeDecoder(BaseDecoder):
                     draft_past_key_values = tmp_draft_past_key_values
         return input_ids
 
-
+    @torch.no_grad()
     def generate_with_stats(
             self,
             input_ids: torch.Tensor,
@@ -284,22 +307,23 @@ class SpeculativeDecoder(BaseDecoder):
         n = input_ids.shape[1] - 1
         draft_past_key_values = None
         target_past_key_values = None
+        draft_probs = torch.empty((input_ids.shape[0], n_lookahead, self.vocab_size), device=input_ids.device)
+        target_probs = torch.empty((input_ids.shape[0], n_lookahead + 1, self.vocab_size), device=input_ids.device)
 
         while (n < T and not self._is_terminator(input_ids[:, -1])):
             logs.append(["S", None, None])  # logs: ["S", None, None]
             draft_token_ids = input_ids
-            draft_probs = torch.empty((input_ids.shape[0], n_lookahead, self.vocab_size), device=input_ids.device)
             for i in range(n_lookahead):
                 if self.use_cache:
                     if draft_past_key_values is None:
                         draft_past_key_values = self.draft_model(input_ids[:, :-1], use_cache=True).past_key_values
                     model_inputs = self.draft_model.prepare_inputs_for_generation(input_ids, past_key_values=draft_past_key_values)
                     outputs = self.draft_model(**model_inputs, use_cache=True)
-                    logits = outputs.logits
+                    next_logits = outputs.logits[:, -1, :]
                     tmp_draft_past_key_values = outputs.past_key_values
                 else:
-                    logits = self.draft_model(input_ids, use_cache=False).logits
-                draft_probs[:, i, :] = self._logits2probs(logits[:, -1, :], temperature=temperature)
+                    next_logits = self.draft_model(input_ids, use_cache=False).logits[:, -1, :]
+                draft_probs[:, i, :] = self._logits2probs(next_logits, temperature=temperature)
                 token_id = torch.multinomial(draft_probs[:, i, :], num_samples=1)
                 draft_token_ids = torch.cat((draft_token_ids, token_id), dim=1)
 
@@ -312,7 +336,6 @@ class SpeculativeDecoder(BaseDecoder):
                 tmp_target_past_key_values = outputs.past_key_values
             else:
                 logits = self.target_model(input_ids, use_cache=False).logits
-            target_probs = torch.empty((input_ids.shape[0], n_lookahead + 1, self.vocab_size), device=input_ids.device)
             for i in range(n_lookahead + 1):
                 target_probs[:, i, :] = self._logits2probs(logits[:, -n_lookahead - 1 + i, :], temperature=temperature)
 

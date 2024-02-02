@@ -152,6 +152,13 @@ def main():
         )
         for i, batch in tqdm(enumerate(dataloader)):
             input_ids = tokenizer.encode(batch["inputs"][0], return_tensors="pt").to(device)
+            if i == 0:
+                _ = decoder.generate_with_stats(
+                    input_ids=input_ids,
+                    max_new_tokens=args.max_new_tokens,
+                    n_lookahead=args.n_lookahead,
+                    temperature=args.temperature,
+                )  # GPU warm-up
             stats = decoder.generate_with_stats(
                 input_ids=input_ids,
                 max_new_tokens=args.max_new_tokens,
@@ -178,6 +185,7 @@ def main():
     if args.decode == "speculative":
         del draft_model
     gc.collect()
+    torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
