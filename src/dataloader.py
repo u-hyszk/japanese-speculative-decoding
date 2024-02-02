@@ -39,7 +39,11 @@ def get_xlsum_dataloader(
     max_text_length: int = None,
     tokenizer: AutoTokenizer = None,
     seed: int = 0,
+<<<<<<< HEAD
     **kwargs,
+=======
+    **args,
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
 ):
     """_summary_
 

@@ -1,4 +1,4 @@
-*.sh
-.venv/
 outputs/
 src/__pycache__/
+*.sh
+.venv/

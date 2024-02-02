@@ -1,5 +1,8 @@
 import os
+<<<<<<< HEAD
 import gc
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
 import json
 from glob import glob
 import argparse
@@ -8,7 +11,10 @@ from typing import Dict, List, Union, Any
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
+<<<<<<< HEAD
 from optimum.bettertransformer import BetterTransformer
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
 from tqdm.auto import tqdm
 from sumeval.metrics.rouge import RougeCalculator
 
@@ -52,6 +58,10 @@ def _collect_stats(stats_dir: str) -> Dict[str, float]:
         for key in stats.keys():
             if key in collected_stats.keys():
                 collected_stats[key].append(stats[key])
+<<<<<<< HEAD
+=======
+    print(collected_stats)
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
     for key in collected_stats.keys():
         try:
             collected_stats[key] = mean(collected_stats[key])
@@ -63,8 +73,13 @@ def _collect_stats(stats_dir: str) -> Dict[str, float]:
 def parse_arguments():
     parser = argparse.ArgumentParser(description="speculative-decoding")
     parser.add_argument("-i", "--input", type=str, default=None)
+<<<<<<< HEAD
     parser.add_argument("-p", "--target_model", type=str, default="u-hyszk/japanese-gpt-neox-409M-xlsum-sft")
     parser.add_argument("-q", "--draft_model", type=str, default="u-hyszk/japanese-gpt-neox-47M-xlsum-sft")
+=======
+    parser.add_argument("-p", "--target_model", type=str, default="u-hyszk/japanese-gpt-neox-409M-100k-iters-xlsum-finetuned")
+    parser.add_argument("-q", "--draft_model", type=str, default="u-hyszk/japanese-gpt-neox-47M-100k-iters-xlsum-finetuned")
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
     parser.add_argument("--decode", type=str, default="auto_regressive")
     parser.add_argument("-k", "--n_lookahead", type=int, default=5)
     parser.add_argument("--temperature", type=float, default=0.0)
@@ -74,9 +89,12 @@ def parse_arguments():
     parser.add_argument("--benchmark", action="store_true", default=False)
     parser.add_argument("--output_dir", type=str, default="outputs")
     parser.add_argument("--max_text_length", type=int, default=256)
+<<<<<<< HEAD
     parser.add_argument("--bits", type=int, default=32)
     parser.add_argument("--use_better_transformer", action="store_true", default=False)
     parser.add_argument("--use_cache", action="store_true", default=False)
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
     return parser.parse_args()
 
 
@@ -85,6 +103,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load model & tokenizer
+<<<<<<< HEAD
     model_args = {}
     if args.bits == 16:
         model_args["torch_dtype"] = torch.float16
@@ -107,13 +126,31 @@ def main():
     if args.decode == "speculative":
         assert draft_model.config.vocab_size == target_model.config.vocab_size, "vocab_size must be the same."
 
+=======
+    tokenizer = AutoTokenizer.from_pretrained(args.target_model)
+    target_model = AutoModelForCausalLM.from_pretrained(args.target_model).to(device)
+    if args.decode == "speculative":
+        draft_model = AutoModelForCausalLM.from_pretrained(args.draft_model).to(device)
+        assert draft_model.config.vocab_size == target_model.config.vocab_size, "vocab_size must be the same."
+
+    # Flash Attention
+    # KV-cache
+    # ONNX Runtime
+    # BetterTransformer
+    # torchscript
+    # quantization
+
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
     # Get auto_regressive/speculative decoder
     if args.decode == "auto_regressive":
         decoder = AutoRegressiveDecoder(
             target_model=target_model,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.pad_token_id,
+<<<<<<< HEAD
             use_cache=args.use_cache,
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         )
     elif args.decode == "speculative":
         decoder = SpeculativeDecoder(
@@ -121,7 +158,10 @@ def main():
             draft_model=draft_model,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.pad_token_id,
+<<<<<<< HEAD
             use_cache=args.use_cache,
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         )
     else:
         raise ValueError("Invalid decode type.")
@@ -142,7 +182,11 @@ def main():
 
     # Benchmarking
     elif args.benchmark:
+<<<<<<< HEAD
         print(f"benchmarking...: {args.output_dir}")
+=======
+        print("benchmarking...")
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         os.makedirs(os.path.join(args.output_dir, "stats"), exist_ok=True)
         dump_json(os.path.join(args.output_dir, "args.json"), args.__dict__)
         rouge = RougeCalculator(stopwords=True, lang="ja")
@@ -168,19 +212,25 @@ def main():
                 stats["logs"] = _decode_logs(tokenizer, stats["logs"])
             del stats["output_ids"]
             dump_json(os.path.join(args.output_dir, "stats", f"stats_{str(i).zfill(5)}.json"), stats)
+<<<<<<< HEAD
             if i >= 10:
                 break
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
         collected_stats = _collect_stats(os.path.join(args.output_dir, "stats"))
         dump_json(os.path.join(args.output_dir, "stats.json"), collected_stats)
     else:
         raise ValueError("input or benchmark must be specified.")
 
+<<<<<<< HEAD
     # Clean up
     del target_model, decoder
     if args.decode == "speculative":
         del draft_model
     gc.collect()
 
+=======
+>>>>>>> 9b1cecbcd95c79eee31cedae5538b53c0b0a882c
 
 if __name__ == "__main__":
     main()
