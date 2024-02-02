@@ -1,0 +1,4 @@
+*.sh
+.venv/
+outputs/
+src/__pycache__/
