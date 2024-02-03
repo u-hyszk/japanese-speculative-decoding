@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 import time
 
 import torch
@@ -239,9 +239,11 @@ class SpeculativeDecoder(BaseDecoder):
                 logits = outputs.logits
                 tmp_target_past_key_values = outputs.past_key_values
             else:
+                # logits = self.target_model(input_ids, use_cache=False).logits[:, -n_lookahead - 1:, :]  # parallel computation
                 logits = self.target_model(input_ids, use_cache=False).logits  # parallel computation
             for i in range(n_lookahead + 1):
                 target_probs[:, i, :] = self._logits2probs(logits[:, -n_lookahead - 1 + i, :], temperature=temperature)  # -n_lookahead - 1, -n_lookahead, ..., -1
+            # target_probs[:, :, :] = self._logits2probs(logits[:, :, :], temperature=temperature)  # -n_lookahead - 1, -n_lookahead, ..., -1
             # get 1 extra probs for "8. If all tokens are accepted, sample an extra token from target model" to be processed later
             # target_probs.shape -> (batch, n_lookahead + 1, vocab)
 
@@ -276,10 +278,10 @@ class SpeculativeDecoder(BaseDecoder):
                 token_id = torch.multinomial(target_probs[:, -1, :], num_samples=1)
                 # Use pre-acquired distributions in "3. In parallel, compute K + 1 sets of logits from drafts"
                 input_ids = torch.cat((input_ids, token_id), dim=1)
-                n += 1
                 if self.use_cache:
                     target_past_key_values = tmp_target_past_key_values
                     draft_past_key_values = tmp_draft_past_key_values
+            n += 1  # count for rejection, extra pick
         return input_ids
 
     @torch.no_grad()
@@ -335,7 +337,7 @@ class SpeculativeDecoder(BaseDecoder):
                 logits = outputs.logits
                 tmp_target_past_key_values = outputs.past_key_values
             else:
-                logits = self.target_model(input_ids, use_cache=False).logits
+                logits = self.target_model(draft_token_ids, use_cache=False).logits
             for i in range(n_lookahead + 1):
                 target_probs[:, i, :] = self._logits2probs(logits[:, -n_lookahead - 1 + i, :], temperature=temperature)
 
@@ -361,12 +363,12 @@ class SpeculativeDecoder(BaseDecoder):
             if is_all_tokens_accepted and n < T:
                 token_id = torch.multinomial(target_probs[:, -1, :], num_samples=1)
                 input_ids = torch.cat((input_ids, token_id), dim=1)
-                n += 1
                 if self.use_cache:
                     target_past_key_values = tmp_target_past_key_values
                     draft_past_key_values = tmp_draft_past_key_values
                 extra_count += 1  # for calculating stats
                 logs.append(["E", token_id, None])
+            n += 1
 
         # for calculating stats
         end_time = time.perf_counter()
