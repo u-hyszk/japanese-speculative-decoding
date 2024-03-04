@@ -10,7 +10,7 @@ readme = "README.md"
 python = "^3.9"
 pytest = "^7.4.3"
 tqdm = "^4.66.1"
-torch = { url = "https://download.pytorch.org/whl/cu117/torch-2.0.0%2Bcu117-cp39-cp39-linux_x86_64.whl"}  // Should be replaced with your environment
+torch = { url = "https://download.pytorch.org/whl/cu117/torch-2.0.0%2Bcu117-cp39-cp39-linux_x86_64.whl"}  # Should be replaced with your environment
 transformers = {git = "https://github.com/huggingface/transformers.git"}
 datasets = "^2.14.6"
 optimum = "^1.16.1"

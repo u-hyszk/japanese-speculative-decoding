@@ -25,7 +25,7 @@ Please edit the `torch` download link according to your CUDA environment. 2.0.0 
 The list of download links for Pytorch is [here](https://download.pytorch.org/whl/torch/)
 
 ```pyproject.toml
-torch = { url = "YOUR_TORCH_LINK"}  // Should be replaced with your environment
+torch = { url = "YOUR_TORCH_LINK"}  # Should be replaced with your environment
 ```
 
 ### 2. Virtual Enviroment Setup

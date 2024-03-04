@@ -25,7 +25,7 @@
 Pytorchのダウンロードリンク一覧は[こちら](https://download.pytorch.org/whl/torch/)
 
 ```pyproject.toml
-torch = { url = "YOUR_TORCH_LINK"}  // Should be replaced with your environment
+torch = { url = "YOUR_TORCH_LINK"}  # Should be replaced with your environment
 ```
 
 ### 2. 環境設定
