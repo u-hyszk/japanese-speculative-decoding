@@ -214,7 +214,7 @@ class SpeculativeDecoder(BaseDecoder):
         while (n < T and not self._is_terminator(input_ids[:, -1])):  # while not EOS/PAD, and not reach the end position (= T)
 
             # 2. Sample draft auto-regressively
-            draft_token_ids = input_ids  # input_iss.shape == draft_token_ids.shape -> (batch, sequence)
+            draft_token_ids = input_ids  # input_ids.shape == draft_token_ids.shape -> (batch, sequence)
             draft_past_key_values = None
             for i in range(n_lookahead):
                 if self.use_cache:
@@ -236,14 +236,12 @@ class SpeculativeDecoder(BaseDecoder):
                     target_past_key_values = self.target_model(input_ids[:, :-1], use_cache=True).past_key_values
                 model_inputs = self.target_model.prepare_inputs_for_generation(input_ids, past_key_values=target_past_key_values)
                 outputs = self.target_model(**model_inputs, use_cache=True)  # parallel computation
-                logits = outputs.logits
+                logits = outputs.logits[:, -n_lookahead - 1:, :]
                 tmp_target_past_key_values = outputs.past_key_values
             else:
-                # logits = self.target_model(input_ids, use_cache=False).logits[:, -n_lookahead - 1:, :]  # parallel computation
-                logits = self.target_model(input_ids, use_cache=False).logits  # parallel computation
-            for i in range(n_lookahead + 1):
-                target_probs[:, i, :] = self._logits2probs(logits[:, -n_lookahead - 1 + i, :], temperature=temperature)  # -n_lookahead - 1, -n_lookahead, ..., -1
-            # target_probs[:, :, :] = self._logits2probs(logits[:, :, :], temperature=temperature)  # -n_lookahead - 1, -n_lookahead, ..., -1
+                logits = self.target_model(input_ids, use_cache=False).logits[:, -n_lookahead - 1:, :]  # parallel computation
+            target_probs[:, :, :] = self._logits2probs(logits, temperature=temperature)  # modify all logits to probs at once
+            # -n_lookahead - 1, -n_lookahead, ..., -1
             # get 1 extra probs for "8. If all tokens are accepted, sample an extra token from target model" to be processed later
             # target_probs.shape -> (batch, n_lookahead + 1, vocab)
 
@@ -334,12 +332,11 @@ class SpeculativeDecoder(BaseDecoder):
                     target_past_key_values = self.target_model(input_ids[:, :-1], use_cache=True).past_key_values
                 model_inputs = self.target_model.prepare_inputs_for_generation(draft_token_ids, past_key_values=target_past_key_values)
                 outputs = self.target_model(**model_inputs, use_cache=True)
-                logits = outputs.logits
+                logits = outputs.logits[:, -n_lookahead - 1:, :]
                 tmp_target_past_key_values = outputs.past_key_values
             else:
-                logits = self.target_model(draft_token_ids, use_cache=False).logits
-            for i in range(n_lookahead + 1):
-                target_probs[:, i, :] = self._logits2probs(logits[:, -n_lookahead - 1 + i, :], temperature=temperature)
+                logits = self.target_model(draft_token_ids, use_cache=False).logits[:, -n_lookahead - 1:, :]
+            target_probs[:, :, :] = self._logits2probs(logits, temperature=temperature)
 
             is_all_tokens_accepted = True
             for i in range(n_lookahead):

@@ -175,6 +175,8 @@ def main():
                 stats["logs"] = _decode_logs(tokenizer, stats["logs"])
             del stats["output_ids"]
             dump_json(os.path.join(args.output_dir, "stats", f"stats_{str(i).zfill(5)}.json"), stats)
+            if i > 100:
+                break
         collected_stats = _collect_stats(os.path.join(args.output_dir, "stats"))
         dump_json(os.path.join(args.output_dir, "stats.json"), collected_stats)
     else:
